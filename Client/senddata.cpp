@@ -520,8 +520,12 @@ void SendData::on_sendfiletofriend(int toid,QString path)
     while(!file.atEnd()){
         QByteArray chunk=file.read(CHUNK_SIZE);
         sendsize+=chunk.size();
-        emit mysendsize((int)(sendsize*100/size));
-        qDebug()<<"发送大小："<<sendsize*100/size<<'\n';
+        static int lastProgress = -1;
+        int currentProgress = (int)(sendsize * 100 / size);
+        if (currentProgress != lastProgress) {
+            emit mysendsize(currentProgress);
+            lastProgress = currentProgress;
+        }
         QByteArray header;
         qint64 filemark = qToBigEndian<qint64>(2);
         header.append(reinterpret_cast<const char*>(&filemark), sizeof(filemark));
@@ -534,6 +538,8 @@ void SendData::on_sendfiletofriend(int toid,QString path)
         header.append(reinterpret_cast<const char*>(&len), sizeof(len));
         header.append(chunk);
         filesocket->write(header);
+        QCoreApplication::processEvents();//发送大文件时让子线程有时间去处理msgsocket的消息
+        QThread::usleep(100);//防止发送大文件时导致主线程卡死
     }
     file.close();
 }
